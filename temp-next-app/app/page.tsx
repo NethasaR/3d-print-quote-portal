@@ -18,7 +18,7 @@ export default function Home() {
             Login
           </Link>
           <Link
-            href="/signup"
+            href="/request"
             className="rounded-lg border border-zinc-300 px-8 py-3 text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
             Get a Quote
