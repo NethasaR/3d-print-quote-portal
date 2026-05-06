@@ -21,6 +21,7 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (body.status !== undefined) updates.status = body.status;
   if (body.quote_amount !== undefined) updates.quote_amount = body.quote_amount;
+  if (body.admin_notes !== undefined) updates.admin_notes = body.admin_notes;
 
   const { data, error } = await supabase
     .from("quote_requests")

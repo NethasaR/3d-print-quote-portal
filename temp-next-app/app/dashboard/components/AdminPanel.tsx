@@ -11,6 +11,8 @@ interface QuoteRequest {
   quote_amount: number | null;
   created_at: string;
   user_id: string;
+  file_url: string | null;
+  admin_notes: string | null;
 }
 
 function formatDate(dateStr: string) {
@@ -42,14 +44,14 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
-  const [localValues, setLocalValues] = useState<Record<string, { status: string; quote_amount: string }>>({});
+  const [localValues, setLocalValues] = useState<Record<string, { status: string; quote_amount: string; admin_notes: string }>>({});
 
   useEffect(() => {
     async function fetchAll() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("quote_requests")
-        .select("id, project_title, status, quantity, quote_amount, created_at, user_id")
+        .select("id, project_title, status, quantity, quote_amount, created_at, user_id, file_url, admin_notes")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -61,11 +63,12 @@ export default function AdminPanel() {
 
       console.log("Fetched admin quote requests:", data);
       setRequests(data || []);
-      const initials: Record<string, { status: string; quote_amount: string }> = {};
+      const initials: Record<string, { status: string; quote_amount: string; admin_notes: string }> = {};
       for (const req of data || []) {
         initials[req.id] = {
           status: req.status,
           quote_amount: req.quote_amount != null ? String(req.quote_amount) : "",
+          admin_notes: req.admin_notes || "",
         };
       }
       setLocalValues(initials);
@@ -81,6 +84,7 @@ export default function AdminPanel() {
     if (vals.quote_amount !== "") {
       body.quote_amount = parseFloat(vals.quote_amount);
     }
+    body.admin_notes = vals.admin_notes;
 
     const res = await fetch(`/api/quote-requests/${id}`, {
       method: "PATCH",
@@ -97,7 +101,7 @@ export default function AdminPanel() {
     setSaving(null);
   }
 
-  function setLocal(id: string, field: "status" | "quote_amount", value: string) {
+  function setLocal(id: string, field: "status" | "quote_amount" | "admin_notes", value: string) {
     setLocalValues((prev) => ({
       ...prev,
       [id]: { ...prev[id], [field]: value },
@@ -123,9 +127,11 @@ export default function AdminPanel() {
           <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
             <tr>
               <th className="px-4 py-3 font-medium text-zinc-500">Project</th>
+              <th className="px-4 py-3 font-medium text-zinc-500">File</th>
               <th className="px-4 py-3 font-medium text-zinc-500">Status</th>
               <th className="px-4 py-3 font-medium text-zinc-500">Qty</th>
               <th className="px-4 py-3 font-medium text-zinc-500">Quote Amount</th>
+              <th className="px-4 py-3 font-medium text-zinc-500">Admin Notes</th>
               <th className="px-4 py-3 font-medium text-zinc-500">Date</th>
               <th className="px-4 py-3 font-medium text-zinc-500">Actions</th>
             </tr>
@@ -135,6 +141,20 @@ export default function AdminPanel() {
               <tr key={req.id} className="align-top">
                 <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
                   {req.project_title}
+                </td>
+                <td className="px-4 py-3">
+                  {req.file_url ? (
+                    <a
+                      href={req.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      View file
+                    </a>
+                  ) : (
+                    <span className="text-xs text-zinc-400">No file</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <select
@@ -159,6 +179,15 @@ export default function AdminPanel() {
                     onChange={(e) => setLocal(req.id, "quote_amount", e.target.value)}
                     placeholder="0.00"
                     className="w-24 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <textarea
+                    rows={2}
+                    value={localValues[req.id]?.admin_notes ?? ""}
+                    onChange={(e) => setLocal(req.id, "admin_notes", e.target.value)}
+                    placeholder="Add customer-visible notes..."
+                    className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                   />
                 </td>
                 <td className="px-4 py-3 text-zinc-500">

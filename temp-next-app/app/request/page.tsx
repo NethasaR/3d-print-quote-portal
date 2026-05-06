@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import Link from "next/link";
 const MATERIALS = ["PLA", "ABS", "PETG", "TPU", "Resin", "Nylon", "Other"];
 const COLORS = ["White", "Black", "Gray", "Red", "Blue", "Green", "Yellow", "Orange", "Other"];
 const DELIVERY_METHODS = ["Pickup", "Standard Shipping", "Express Shipping"];
+const ALLOWED_TYPES = [".stl", ".obj", ".3mf", ".png", ".jpg", ".pdf"];
+const MAX_SIZE_MB = 25;
 
 export default function RequestPage() {
   const router = useRouter();
@@ -26,6 +28,10 @@ export default function RequestPage() {
     phone: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -47,6 +53,31 @@ export default function RequestPage() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    setFileError(null);
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+    const ext = "." + selected.name.split(".").pop()?.toLowerCase();
+    if (!ALLOWED_TYPES.includes(ext)) {
+      setFileError(`File type ${ext} not allowed. Allowed: ${ALLOWED_TYPES.join(", ")}`);
+      setFile(null);
+      return;
+    }
+    if (selected.size > MAX_SIZE_MB * 1024 * 1024) {
+      setFileError(`File too large. Max ${MAX_SIZE_MB}MB`);
+      setFile(null);
+      return;
+    }
+    setFile(selected);
+  };
+
+  const handleUploadAreaClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!form.project_title.trim()) errors.project_title = "Project title is required";
@@ -58,22 +89,50 @@ export default function RequestPage() {
     return Object.keys(errors).length === 0;
   };
 
+  const uploadFile = async (supabase: ReturnType<typeof createClient>): Promise<string | null> => {
+    if (!file) return null;
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase
+      .storage
+      .from("quote-files")
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from("quote-files")
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
+    setFileError(null);
 
     if (!validate()) return;
 
     setSubmitting(true);
+    setUploading(true);
 
     try {
+      const supabase = createClient();
+      const fileUrl = await uploadFile(supabase);
+      setUploading(false);
+
       const res = await fetch("/api/quote-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           quantity: parseInt(form.quantity),
+          file_url: fileUrl,
         }),
       });
 
@@ -88,8 +147,13 @@ export default function RequestPage() {
       setTimeout(() => {
         router.push("/dashboard");
       }, 1500);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err: any) {
+      setUploading(false);
+      if (err.message?.includes("storage")) {
+        setFileError("Failed to upload file. Please try again.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -295,13 +359,86 @@ export default function RequestPage() {
           )}
         </div>
 
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">
+            Upload File <span className="text-red-500">*</span>
+          </label>
+          <input
+            ref={fileInputRef}
+            id="file"
+            name="file"
+            type="file"
+            accept={ALLOWED_TYPES.join(",")}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          {!file ? (
+            <button
+              type="button"
+              onClick={handleUploadAreaClick}
+              className={`flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 transition ${
+                fileError
+                  ? "border-red-400 bg-red-50/50 hover:bg-red-50 dark:border-red-500 dark:bg-red-950/30"
+                  : "border-zinc-300 bg-zinc-50 hover:bg-zinc-100 hover:border-zinc-400 dark:border-zinc-600 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 dark:hover:border-zinc-500"
+              }`}
+            >
+              <svg className="h-8 w-8 text-zinc-400 dark:text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3" />
+              </svg>
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Click to upload your 3D model or reference file
+              </span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                {ALLOWED_TYPES.join(", ")} | Max: {MAX_SIZE_MB}MB
+              </span>
+            </button>
+          ) : (
+            <div className="relative rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-4 dark:border-zinc-600 dark:bg-zinc-800/50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-zinc-200 dark:bg-zinc-700">
+                  <svg className="h-5 w-5 text-zinc-600 dark:text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{file.name}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{(file.size / 1024 / 1024).toFixed(2)}MB</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setFile(null); setFileError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  className="shrink-0 rounded-md p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 transition dark:hover:text-red-400 dark:hover:bg-red-950/30"
+                  title="Remove file"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleUploadAreaClick}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700/50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Change file
+              </button>
+            </div>
+          )}
+          {fileError && (
+            <p className="mt-2 text-xs text-red-500">{fileError}</p>
+          )}
+        </div>
+
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || uploading}
             className="flex-1 rounded-md bg-zinc-900 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            {submitting ? "Submitting..." : "Submit Request"}
+            {uploading ? "Uploading file..." : submitting ? "Submitting..." : "Submit Request"}
           </button>
           <Link
             href="/dashboard"

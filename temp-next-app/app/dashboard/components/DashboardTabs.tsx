@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import AdminPanel from "./AdminPanel";
 
 interface Request {
@@ -9,6 +10,8 @@ interface Request {
   status: string;
   quantity: number;
   created_at: string;
+  file_url: string | null;
+  admin_notes: string | null;
 }
 
 function formatDate(dateStr: string) {
@@ -35,8 +38,36 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function DashboardTabs({ requests, isAdmin }: { requests: Request[] | null; isAdmin: boolean }) {
+export default function DashboardTabs({ isAdmin }: { isAdmin: boolean }) {
   const [activeTab, setActiveTab] = useState<"my" | "admin">("my");
+  const [requests, setRequests] = useState<Request[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchRequests() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("quote_requests")
+        .select("id, project_title, status, quantity, created_at, file_url, admin_notes")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching requests:", error);
+      } else {
+        setRequests(data);
+      }
+      setLoading(false);
+    }
+
+    if (activeTab === "my") {
+      fetchRequests();
+    }
+  }, [activeTab]);
 
   return (
     <>
@@ -67,7 +98,11 @@ export default function DashboardTabs({ requests, isAdmin }: { requests: Request
 
       {activeTab === "my" && (
         <div className="mt-6">
-          {!requests || requests.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-600 dark:border-t-zinc-100" />
+            </div>
+          ) : !requests || requests.length === 0 ? (
             <div className="rounded-md border border-dashed border-zinc-300 p-12 text-center dark:border-zinc-700">
               <p className="text-zinc-500">No requests yet</p>
             </div>
@@ -86,6 +121,27 @@ export default function DashboardTabs({ requests, isAdmin }: { requests: Request
                     <span>Qty: {req.quantity}</span>
                     <span>{formatDate(req.created_at)}</span>
                   </div>
+                  {req.file_url && (
+                    <div className="mt-3">
+                      <a
+                        href={req.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        View attached file
+                      </a>
+                    </div>
+                  )}
+                  {req.admin_notes && (
+                    <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
+                      <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Admin Notes</p>
+                      <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">{req.admin_notes}</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

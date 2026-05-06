@@ -22,6 +22,8 @@ export async function GET() {
       quote_amount,
       created_at,
       user_id,
+      file_url,
+      admin_notes,
       profiles(email)
     `)
     .order("created_at", { ascending: false });
@@ -43,6 +45,8 @@ export async function GET() {
     created_at: req.created_at,
     user_id: req.user_id,
     email: req.profiles?.email || null,
+    file_url: req.file_url || null,
+    admin_notes: req.admin_notes || null,
   }));
 
   console.log("Admin GET /api/quote-requests - Formatted data:", JSON.stringify(formatted, null, 2));
@@ -76,6 +80,7 @@ export async function POST(request: Request) {
       delivery_method: body.delivery_method,
       phone: body.phone,
       status: "Pending",
+      file_url: body.file_url || null,
     })
     .select()
     .single();

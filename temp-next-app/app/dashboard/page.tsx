@@ -19,12 +19,6 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  const { data: requests } = await supabase
-    .from("quote_requests")
-    .select("id, project_title, status, quantity, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
-
   return (
     <div className="mx-auto flex max-w-6xl flex-col px-4 py-24">
       <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -50,7 +44,7 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <DashboardTabs requests={requests} isAdmin={profile?.role === "admin"} />
+      <DashboardTabs isAdmin={profile?.role === "admin"} />
     </div>
   );
 }

@@ -46,6 +46,10 @@ CREATE TRIGGER on_auth_user_created
 -- quote_requests table RLS policies
 ALTER TABLE public.quote_requests ENABLE ROW LEVEL SECURITY;
 
+-- Add new columns if they don't exist
+ALTER TABLE public.quote_requests ADD COLUMN IF NOT EXISTS file_url TEXT;
+ALTER TABLE public.quote_requests ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+
 DROP POLICY IF EXISTS "Anyone can view all quote requests" ON public.quote_requests;
 CREATE POLICY "Anyone can view all quote requests"
   ON public.quote_requests FOR SELECT
@@ -60,3 +64,30 @@ DROP POLICY IF EXISTS "Users can update their own quote requests" ON public.quot
 CREATE POLICY "Authenticated users can update quote requests"
   ON public.quote_requests FOR UPDATE
   USING (auth.role() = 'authenticated');
+
+-- Create quote-files storage bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('quote-files', 'quote-files', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage RLS policies for quote-files bucket
+CREATE POLICY "Authenticated users can upload files"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'quote-files'
+    AND auth.role() = 'authenticated'
+  );
+
+CREATE POLICY "Authenticated users can view their own files"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'quote-files'
+    AND auth.role() = 'authenticated'
+  );
+
+CREATE POLICY "Authenticated users can delete their own files"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'quote-files'
+    AND auth.role() = 'authenticated'
+  );
