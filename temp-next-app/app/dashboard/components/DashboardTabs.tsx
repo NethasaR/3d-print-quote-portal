@@ -39,7 +39,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function DashboardTabs({ isAdmin }: { isAdmin: boolean }) {
-  const [activeTab, setActiveTab] = useState<"my" | "admin">("my");
+  const [activeTab, setActiveTab] = useState<"my" | "admin">(isAdmin ? "admin" : "my");
   const [requests, setRequests] = useState<Request[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -72,16 +72,18 @@ export default function DashboardTabs({ isAdmin }: { isAdmin: boolean }) {
   return (
     <>
       <div className="mt-10 flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800">
-        <button
-          onClick={() => setActiveTab("my")}
-          className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "my"
-              ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
-              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          }`}
-        >
-          My Requests
-        </button>
+        {!isAdmin && (
+          <button
+            onClick={() => setActiveTab("my")}
+            className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === "my"
+                ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
+                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
+          >
+            My Requests
+          </button>
+        )}
         {isAdmin && (
           <button
             onClick={() => setActiveTab("admin")}
@@ -136,12 +138,14 @@ export default function DashboardTabs({ isAdmin }: { isAdmin: boolean }) {
                       </a>
                     </div>
                   )}
-                  {req.admin_notes && (
-                    <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
-                      <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Admin Notes</p>
+                  <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Admin Notes</p>
+                    {req.admin_notes ? (
                       <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">{req.admin_notes}</p>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="mt-1 text-sm text-amber-600/70 dark:text-amber-400/60 italic">No admin notes yet</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

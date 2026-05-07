@@ -19,6 +19,8 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
+  const isAdmin = profile?.role === "admin";
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col px-4 py-24">
       <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -34,17 +36,19 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-12 flex items-center justify-between">
-        <h2 className="text-xl font-bold">Quote Requests</h2>
-        <Link
-          href="/request"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          New Request
-        </Link>
-      </div>
+      {!isAdmin && (
+        <div className="mt-12 flex items-center justify-between">
+          <h2 className="text-xl font-bold">Quote Requests</h2>
+          <Link
+            href="/request"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            New Request
+          </Link>
+        </div>
+      )}
 
-      <DashboardTabs isAdmin={profile?.role === "admin"} />
+      <DashboardTabs isAdmin={isAdmin} />
     </div>
   );
 }
